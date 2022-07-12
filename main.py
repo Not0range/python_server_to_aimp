@@ -202,6 +202,41 @@ async def InfoHandle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
       f'Перемешивание: {"🔀" if info["shuffle"] else "➡"}', \
       reply_markup={'keyboard': reply_kb})
 
+async def QueueHandle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+  if update.message is None:
+    return
+  chat_id, msg_text = (update.message.chat_id, update.message.text)
+  list = msg_text.split(' ', 1)
+  if len(list) == 1:
+    await context.bot.send_message(chat_id=chat_id, text='Need value', \
+      reply_markup={'keyboard': reply_kb})
+    return
+  else:
+    try:
+      res = requests.get(f'{host}/queue?id={int(list[1])}')
+      if res.status_code == 400:
+        await context.bot.send_message(chat_id=chat_id, text='Number too big', \
+          reply_markup={'keyboard': reply_kb})
+        return
+    except ValueError:
+      res = requests.get(f'{host}/queue?text={list[1]}')
+      if res.status_code == 204:
+        await context.bot.send_message(chat_id=chat_id, text='Not found', \
+          reply_markup={'keyboard': reply_kb})
+        return
+      arr = res.json()
+      if arr is not None:
+        kb = []
+        i = 0
+        while i < math.ceil(len(arr)):
+          kb.append([{'text': t['Id'] + 1, 'callback_data': t['Id'] + 1} \
+            for t in arr[i : i + 5]])
+          i = i + 5
+
+        await context.bot.send_message(chat_id=chat_id, \
+          text='\n'.join([f"{t['Id'] + 1} - {t['Song']}" for t in arr]), \
+          reply_markup={'inline_keyboard': kb})
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='get token and other? bot parametrs')
   parser.add_argument('--token', type=str, default='')
@@ -225,7 +260,7 @@ if __name__ == '__main__':
   app.add_handler(CommandHandler('play', PlayHandle))
   app.add_handler(CommandHandler(['info', 'i'], InfoHandle))
   app.add_handler(CommandHandler(['lyrics', 'l'], LyricsHandle))
-  #app.add_handler(CommandHandler(['queue', 'q'], InfoHandle))
+  app.add_handler(CommandHandler(['queue', 'q'], QueueHandle))
 
   app.add_handler(MessageHandler(filters.TEXT, MessageHandle))
 
